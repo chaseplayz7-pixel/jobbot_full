@@ -1,60 +1,32 @@
-# Job Search Control Center
-# Edit this file to customize your job search. Changes will apply to the next run.
-# This file is loaded by the scraper scripts.
-
-# Keywords to search for in job titles, descriptions, and company pages.
-# Use phrases or words that match your target roles (e.g., "TPM", "Data Center").
-# The scraper looks for jobs containing ANY of these keywords.
+user: ayo
+created_at: '2025-12-30T23:36:51.649212'
 keywords:
-  - "data center"
-  - "TPM"
-  - "Program Manager"
-
-# Locations to focus on (currently set to Canada-wide).
-# Leave empty for all provinces, or specify like ["Ontario", "British Columbia"].
+- software engineer
+- data analyst
+- tech support
+- IT specialist
 locations:
-  - "Canada"
-
-# Job sources to scrape.
-# Set to true/false to enable/disable.
+- America
+- Remote
 sources:
-  jobbank: true      # Government job site (JobBank.gc.ca)
-  indeed: true       # Popular job board (Indeed.ca)
-  company_ats: true  # Direct company career pages
-
-# Company-specific career pages to scrape.
-# Add/remove companies as needed. Format: name and careers URL.
+  jobbank: true
+  indeed: true
+  company_ats: true
 target_companies:
-  - name: "Google"
-    careers: "https://careers.google.com/jobs/results/"
-  - name: "Microsoft"
-    careers: "https://careers.microsoft.com/us/en/search-results"
-  - name: "LinkedIn"
-    careers: "https://careers.linkedin.com/"
-  - name: "Equinix"
-    careers: "https://careers.equinix.com/"
-  - name: "CyrusOne"
-    careers: "https://cyrusone.wd1.myworkdayjobs.com/careers"
-  - name: "Aligned"
-    careers: "https://aligneddata.centuri.ca/careers"
-
-# Scraping settings.
+- name: google
+  careers: https://careers.google.com
+- name: microsoft
+  careers: https://careers.microsoft.com
+- name: amazon
+  careers: https://amazon.jobs
+- name: meta
+  careers: https://metacareers.com
 scraping:
-  max_jobs_per_source: 50  # Limit jobs scraped per site to avoid overload.
-  headless: true           # Run browser invisibly (true for CI, false for local debugging).
-  retries: 2               # Retry failed requests up to this many times.
-  timeout: 60000           # Page load timeout in ms.
-
-# Output settings.
+  max_jobs_per_source: 50
+  headless: false
+  retries: 1
+  timeout: 60000
 output:
-  csv_file: "jobs_results.csv"  # Name of the output CSV file.
-  include_logs: true            # Print detailed logs during scraping.
-
-# Advanced: Proxy settings (leave empty if not using).
-# Format: "http://user:pass@host:port"
-proxy: ""
-
-# Notes:
-# - Save this file and rerun the scraper (python playwright_full.py).
-# - For CI, push changes to GitHub for automated runs.
-# - If no jobs found, try broader keywords or add proxies.
+  csv_file: ayo_results
+  include_logs: true
+proxy: y
