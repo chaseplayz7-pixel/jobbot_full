@@ -232,27 +232,27 @@ def main():
         # company ATS
         if SOURCES.get('company_ats', True):
             for c in cfg.get('target_companies', []):
-            def make_company_run(company, url):
-                def _run():
-                    browser = launch_browser(p)
-                    try:
-                        page = browser.new_page()
-                        page.set_default_navigation_timeout(60000)
-                        page.set_default_timeout(60000)
-                        return scrape_company_ats(page, company, url)
-                    finally:
+                def make_company_run(company, url):
+                    def _run():
+                        browser = launch_browser(p)
                         try:
-                            browser.close()
-                        except Exception:
-                            pass
-                return _run
+                            page = browser.new_page()
+                            page.set_default_navigation_timeout(60000)
+                            page.set_default_timeout(60000)
+                            return scrape_company_ats(page, company, url)
+                        finally:
+                            try:
+                                browser.close()
+                            except Exception:
+                                pass
+                    return _run
 
-            try:
-                runner = make_company_run(c.get('name'), c.get('careers'))
-                all_results.extend(run_with_retries(runner, attempts=PLAY_CFG.get('retries', 2), backoff=2) or [])
-            except Exception as e:
-                print('company scrape failed after retries', c.get('name'), e)
-            time.sleep(1)
+                try:
+                    runner = make_company_run(c.get('name'), c.get('careers'))
+                    all_results.extend(run_with_retries(runner, attempts=PLAY_CFG.get('retries', 2), backoff=2) or [])
+                except Exception as e:
+                    print('company scrape failed after retries', c.get('name'), e)
+                time.sleep(1)
         if all_results:
             keys = ['source','title','company','location','link','description']
             with open(OUTPUT, 'w', newline='', encoding='utf-8') as f:
