@@ -27,6 +27,6 @@ target_companies:
     careers: https://aligneddata.centuri.ca/careers
 proxy: null  # set to e.g. "http://user:pass@host:port" to enable
 playwright:
-  headless: false
+  headless: true
   retries: 2
 review_db: review_queue.db
