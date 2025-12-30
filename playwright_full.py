@@ -5,12 +5,13 @@ from datetime import datetime
 import time
 from proxies import load_proxies, pick_proxy
 
-with open('config.yaml','r',encoding='utf-8') as f:
+with open('search_control.yaml','r',encoding='utf-8') as f:
     cfg = yaml.safe_load(f)
 
-KEYWORDS = cfg.get('keywords')
-OUTPUT = cfg.get('output_csv','jobs_results_playwright_full.csv')
-PLAY_CFG = cfg.get('playwright', {})
+KEYWORDS = cfg.get('keywords', [])
+OUTPUT = cfg.get('output', {}).get('csv_file', 'jobs_results.csv')
+PLAY_CFG = cfg.get('scraping', {})
+SOURCES = cfg.get('sources', {})
 PROXIES = load_proxies()
 
 def launch_browser(pw):
@@ -44,7 +45,9 @@ def matches_keywords(text):
     return any(k.lower() in t for k in KEYWORDS)
 
 
-def scrape_jobbank(page, limit=50):
+def scrape_jobbank(page, limit=None):
+    if limit is None:
+        limit = PLAY_CFG.get('max_jobs_per_source', 50)
     results = []
     q = ' '.join(KEYWORDS)
     url = f'https://www.jobbank.gc.ca/jobsearch/jobsearch?searchstring={q}&locationstring=Canada'
@@ -86,7 +89,9 @@ def scrape_jobbank(page, limit=50):
     return results
 
 
-def scrape_indeed(page, limit=50):
+def scrape_indeed(page, limit=None):
+    if limit is None:
+        limit = PLAY_CFG.get('max_jobs_per_source', 50)
     results = []
     q = '+'.join(KEYWORDS)
     url = f'https://ca.indeed.com/jobs?q={q}&l=Canada'
@@ -190,7 +195,7 @@ def main():
                 page = browser.new_page()
                 page.set_default_navigation_timeout(60000)
                 page.set_default_timeout(60000)
-                res = scrape_jobbank(page, limit=30)
+                res = scrape_jobbank(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
                 return res
             finally:
                 try:
@@ -204,7 +209,7 @@ def main():
                 page = browser.new_page()
                 page.set_default_navigation_timeout(60000)
                 page.set_default_timeout(60000)
-                res = scrape_indeed(page, limit=30)
+                res = scrape_indeed(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
                 return res
             finally:
                 try:
@@ -213,17 +218,20 @@ def main():
                     pass
 
         try:
-            all_results.extend(run_with_retries(run_jobbank, attempts=PLAY_CFG.get('retries', 2), backoff=3) or [])
+            if SOURCES.get('jobbank', True):
+                all_results.extend(run_with_retries(run_jobbank, attempts=PLAY_CFG.get('retries', 2), backoff=3) or [])
         except Exception as e:
             print('jobbank scrape failed after retries', e)
 
         try:
-            all_results.extend(run_with_retries(run_indeed, attempts=PLAY_CFG.get('retries', 2), backoff=3) or [])
+            if SOURCES.get('indeed', True):
+                all_results.extend(run_with_retries(run_indeed, attempts=PLAY_CFG.get('retries', 2), backoff=3) or [])
         except Exception as e:
             print('indeed scrape failed after retries', e)
 
         # company ATS
-        for c in cfg.get('target_companies', []):
+        if SOURCES.get('company_ats', True):
+            for c in cfg.get('target_companies', []):
             def make_company_run(company, url):
                 def _run():
                     browser = launch_browser(p)
