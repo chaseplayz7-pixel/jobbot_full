@@ -1,0 +1,12 @@
+/.venv/
+.venv/
+venv/
+__pycache__/
+*.pyc
+jobs_results*.csv
+resume_output.html
+resume_output.pdf
+apify_actor_template.zip
+/.DS_Store
+/.pytest_cache/
+/.vscode/
