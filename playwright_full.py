@@ -254,7 +254,12 @@ def main():
                     writer.writerow(r)
             print(f'Saved {len(all_results)} records to {OUTPUT} at {datetime.utcnow().isoformat()}')
         else:
-            print('No results found by Playwright full run')
+            # Always create the file with headers for CI upload
+            keys = ['source','title','company','location','link','description']
+            with open(OUTPUT, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=keys)
+                writer.writeheader()
+            print(f'No results found, created empty {OUTPUT} at {datetime.utcnow().isoformat()}')
 
 if __name__ == '__main__':
     main()
