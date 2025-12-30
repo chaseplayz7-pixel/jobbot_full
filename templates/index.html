@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Review Queue</title></head>
+<body>
+  <h1>Review Queue</h1>
+  <table border="1" cellpadding="6">
+    <tr><th>ID</th><th>Source</th><th>Title</th><th>Company</th><th>Scraped At</th><th>Actions</th></tr>
+    {% for j in jobs %}
+    <tr>
+      <td>{{j.id}}</td>
+      <td>{{j.source}}</td>
+      <td><a href="/job/{{j.id}}">{{j.title}}</a></td>
+      <td>{{j.company}}</td>
+      <td>{{j.scraped_at}}</td>
+      <td>
+        <form action="/job/{{j.id}}/mark" method="post" style="display:inline"><button type="submit">Mark Reviewed</button></form>
+        <a href="/job/{{j.id}}/generate">Generate Resume PDF</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</body>
+</html>

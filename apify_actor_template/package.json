@@ -1,0 +1,9 @@
+{
+  "name": "job-scanner-actor",
+  "version": "0.1.0",
+  "main": "main.py",
+  "apify": {
+    "platform": "python",
+    "memory": 2048
+  }
+}

@@ -1,0 +1,11 @@
+__pycache__/
+.venv/
+dist/
+build/
+*.pyc
+.pytest_cache/
+.git/
+jobs_results*.csv
+resume_output.html
+resume_output.pdf
+apify_actor_template.zip

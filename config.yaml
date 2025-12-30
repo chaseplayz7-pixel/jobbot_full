@@ -1,0 +1,37 @@
+country: Canada
+provinces: []  # empty = all provinces
+remote_ok: false
+keywords:
+  - "Technical Program Manager"
+  - "TPM"
+  - "Program Manager"
+  - "Data Center"
+  - "Physical Security"
+  - "Security Program Manager"
+visa_keywords:
+  - "Global Talent Stream"
+  - "GTS"
+  - "LMIA"
+  - "visa sponsorship"
+  - "work permit"
+user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+max_results_per_source: 200
+output_csv: jobs_results.csv
+target_companies:
+  - name: Google
+    careers: https://careers.google.com/jobs/results/
+  - name: Microsoft
+    careers: https://careers.microsoft.com/us/en/search-results
+  - name: LinkedIn
+    careers: https://careers.linkedin.com/
+  - name: Equinix
+    careers: https://careers.equinix.com/
+  - name: CyrusOne
+    careers: https://cyrusone.wd1.myworkdayjobs.com/careers
+  - name: Aligned
+    careers: https://aligneddata.centuri.ca/careers
+proxy: null  # set to e.g. "http://user:pass@host:port" to enable
+playwright:
+  headless: true
+  retries: 2
+review_db: review_queue.db
