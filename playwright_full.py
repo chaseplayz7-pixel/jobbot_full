@@ -48,9 +48,11 @@ def scrape_jobbank(page, limit=50):
     results = []
     q = ' '.join(KEYWORDS)
     url = f'https://www.jobbank.gc.ca/jobsearch/jobsearch?searchstring={q}&locationstring=Canada'
+    print(f'JobBank: Searching for "{q}" at {url}')
     page.goto(url)
     page.wait_for_timeout(2000)
     anchors = page.query_selector_all('a[href*="/jobsearch/jobposting/"]')
+    print(f'JobBank: Found {len(anchors)} job links')
     seen = set()
     for a in anchors[:limit]:
         try:
@@ -61,6 +63,7 @@ def scrape_jobbank(page, limit=50):
             if link in seen:
                 continue
             seen.add(link)
+            print(f'JobBank: Visiting {link}')
             page.goto(link)
             page.wait_for_timeout(1000)
             title = page.query_selector('h1')
@@ -73,21 +76,27 @@ def scrape_jobbank(page, limit=50):
             desc = desc_el.inner_text().strip() if desc_el else ''
             if matches_keywords(title_t + ' ' + desc):
                 results.append({'source':'JobBank','title':title_t,'company':company,'location':loc,'link':link,'description':desc[:2000]})
+                print(f'JobBank: Added job "{title_t}" by {company}')
+            else:
+                print(f'JobBank: Skipped job "{title_t}" - no keyword match')
         except Exception as e:
             print('jobbank item error', e)
             continue
+    print(f'JobBank: Total results: {len(results)}')
     return results
 
 
 def scrape_indeed(page, limit=50):
     results = []
     q = '+'.join(KEYWORDS)
-    url = f'https://ca.indeed.com/jobs?q={q}&l=Canada&fromage=30'
+    url = f'https://ca.indeed.com/jobs?q={q}&l=Canada'
+    print(f'Indeed: Searching for "{q}" at {url}')
     page.goto(url)
     page.wait_for_timeout(3000)
     cards = page.query_selector_all('a.tapItem')
     if not cards:
         cards = page.query_selector_all('a[href*="/rc/clk"]')
+    print(f'Indeed: Found {len(cards)} job cards')
     seen = set()
     for c in cards[:limit]:
         try:
@@ -98,6 +107,7 @@ def scrape_indeed(page, limit=50):
             if link in seen:
                 continue
             seen.add(link)
+            print(f'Indeed: Visiting {link}')
             page.goto(link)
             page.wait_for_timeout(1200)
             title = page.title()
@@ -109,9 +119,13 @@ def scrape_indeed(page, limit=50):
             desc = desc_el.inner_text().strip() if desc_el else ''
             if matches_keywords(title + ' ' + desc):
                 results.append({'source':'Indeed','title':title,'company':company,'location':loc,'link':link,'description':desc[:2000]})
+                print(f'Indeed: Added job "{title}" by {company}')
+            else:
+                print(f'Indeed: Skipped job "{title}" - no keyword match')
         except Exception as e:
             print('indeed item error', e)
             continue
+    print(f'Indeed: Total results: {len(results)}')
     return results
 
 
@@ -126,7 +140,9 @@ def scrape_company_ats(page, company, url):
         if any(k.lower() in page_text.lower() for k in KEYWORDS):
             # try to find links on page
             anchors = page.query_selector_all('a')
+            print(f'Company {company}: Found {len(anchors)} links on careers page')
             seen = set()
+            job_links = 0
             for a in anchors:
                 try:
                     href = a.get_attribute('href')
@@ -138,16 +154,29 @@ def scrape_company_ats(page, company, url):
                     full = href if href.startswith('http') else url.rstrip('/') + '/' + href.lstrip('/')
                     # visit candidate pages with job in path
                     if any(tok in full.lower() for tok in ['job','career','position','opening']):
+                        job_links += 1
+                        if job_links > 10:  # limit to 10 job links per company
+                            continue
+                        print(f'Company {company}: Visiting potential job link {full}')
                         page.goto(full)
                         page.wait_for_timeout(1200)
                         txt = page.inner_text('body')
                         if matches_keywords(txt):
                             title = page.title()
-                            results.append({'source':f'Company:{company}','title':title,'company':company,'location':'','link':full,'description':txt[:2000]})
+                            if 'job' in title.lower() or 'position' in title.lower() or 'career' in title.lower():  # better filter
+                                results.append({'source':f'Company:{company}','title':title,'company':company,'location':'','link':full,'description':txt[:2000]})
+                                print(f'Company {company}: Added job "{title}"')
+                            else:
+                                print(f'Company {company}: Skipped page "{title}" - not a job page')
+                        else:
+                            print(f'Company {company}: Skipped page - no keyword match')
                 except Exception:
                     continue
+        else:
+            print(f'Company {company}: No keywords found on careers page')
     except Exception as e:
         print('company ats error', company, e)
+    print(f'Company {company}: Total results: {len(results)}')
     return results
 
 

@@ -2,12 +2,7 @@ country: Canada
 provinces: []  # empty = all provinces
 remote_ok: false
 keywords:
-  - "Technical Program Manager"
-  - "TPM"
-  - "Program Manager"
-  - "Data Center"
-  - "Physical Security"
-  - "Security Program Manager"
+  - "data center"
 visa_keywords:
   - "Global Talent Stream"
   - "GTS"
@@ -32,6 +27,6 @@ target_companies:
     careers: https://aligneddata.centuri.ca/careers
 proxy: null  # set to e.g. "http://user:pass@host:port" to enable
 playwright:
-  headless: true
+  headless: false
   retries: 2
 review_db: review_queue.db
