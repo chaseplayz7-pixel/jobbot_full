@@ -53,20 +53,36 @@ def setup_user_preferences():
     print("Leave empty to skip, or enter multiple separated by semicolons.")
     companies_input = get_user_input("Companies (name|url;name|url)", "")
     target_companies = []
-    if companies_input:
+    if companies_input and companies_input.lower() not in ['n', 'no', 'skip']:
         for comp in companies_input.split(';'):
             if '|' in comp:
-                name, url = comp.split('|', 1)
-                target_companies.append({
-                    'name': name.strip(),
-                    'careers': url.strip()
-                })
+                parts = comp.split('|', 1)
+                if len(parts) == 2:
+                    name, url = parts
+                    target_companies.append({
+                        'name': name.strip(),
+                        'careers': url.strip()
+                    })
+                else:
+                    print(f"Invalid format for: {comp}. Skipping.")
+            else:
+                print(f"Invalid format for: {comp}. Use name|url.")
 
     # Scraping settings
     print("\n--- Scraping Settings ---")
-    max_jobs = int(get_user_input("Max jobs per source", "50"))
+    while True:
+        try:
+            max_jobs = int(get_user_input("Max jobs per source", "50"))
+            break
+        except ValueError:
+            print("Please enter a number.")
     headless = get_user_input("Run browser invisibly (headless)? y/n", "y").lower().startswith('y')
-    retries = int(get_user_input("Retry failed requests", "2"))
+    while True:
+        try:
+            retries = int(get_user_input("Retry failed requests", "2"))
+            break
+        except ValueError:
+            print("Please enter a number.")
 
     # Output settings
     print("\n--- Output Settings ---")
