@@ -14,15 +14,29 @@ PLAY_CFG = cfg.get('scraping', {})
 SOURCES = cfg.get('sources', {})
 PROXIES = load_proxies()
 
+import random
+
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15'
+]
+
 def launch_browser(pw):
+    user_agent = random.choice(USER_AGENTS)
     proxy_cfg = None
     if PROXIES:
         picked = pick_proxy(PROXIES)
         if picked:
             proxy_cfg = {k: v for k, v in picked.items() if k in ('server', 'username', 'password')}
     if proxy_cfg:
-        return pw.chromium.launch(headless=PLAY_CFG.get('headless', True), proxy=proxy_cfg)
-    return pw.chromium.launch(headless=PLAY_CFG.get('headless', True))
+        browser = pw.chromium.launch(headless=PLAY_CFG.get('headless', True), proxy=proxy_cfg)
+    else:
+        browser = pw.chromium.launch(headless=PLAY_CFG.get('headless', True))
+    context = browser.new_context(user_agent=user_agent)
+    return context
 
 
 def run_with_retries(action_fn, attempts=2, backoff=2):
@@ -55,8 +69,9 @@ def scrape_jobbank(page, limit=None):
     page.goto(url)
     page.wait_for_timeout(2000)
     # Scroll to load more jobs
-    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-    page.wait_for_timeout(2000)
+    for _ in range(3):
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(2000)
     anchors = page.query_selector_all('a[href*="/jobsearch/jobposting/"]')
     print(f'JobBank: Found {len(anchors)} job links')
     seen = set()
@@ -104,8 +119,9 @@ def scrape_indeed(page, limit=None):
     page.wait_for_timeout(3000)
     check_captcha(page)
     # Scroll to load more jobs
-    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-    page.wait_for_timeout(2000)
+    for _ in range(3):
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(2000)
     cards = page.query_selector_all('a.tapItem')
     if not cards:
         cards = page.query_selector_all('a[href*="/rc/clk"]')
@@ -164,32 +180,31 @@ def scrape_linkedin(page, limit=None):
     page.wait_for_timeout(3000)
     check_captcha(page)
     # Scroll to load more jobs
-    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-    page.wait_for_timeout(2000)
-    cards = page.query_selector_all('a[href*="/jobs/view/"]')
-    print(f'LinkedIn: Found {len(cards)} job links')
+    for _ in range(3):
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(2000)
+    cards = page.query_selector_all('li[data-occludable-job-id]')
+    print(f'LinkedIn: Found {len(cards)} job cards')
     seen = set()
     for c in cards[:limit]:
         try:
-            href = c.get_attribute('href')
+            link_el = c.query_selector('a')
+            if not link_el:
+                continue
+            href = link_el.get_attribute('href')
             if not href or href in seen:
                 continue
             seen.add(href)
             link = href if href.startswith('http') else 'https://www.linkedin.com' + href
-            print(f'LinkedIn: Visiting {link}')
-            page.goto(link)
-            page.wait_for_load_state('domcontentloaded')
-            page.wait_for_timeout(1200)
-            check_captcha(page)
-            title_el = page.query_selector('h1')
-            title = title_el.inner_text().strip() if title_el else ''
-            company_el = page.query_selector('.job-details-jobs-unified-top-card__company-name a')
-            company = company_el.inner_text().strip() if company_el else ''
-            loc_el = page.query_selector('.job-details-jobs-unified-top-card__bullet')
-            loc = loc_el.inner_text().strip() if loc_el else ''
-            desc_el = page.query_selector('.job-details-jobs-unified-top-card__description')
-            desc = desc_el.inner_text().strip() if desc_el else ''
-            if matches_keywords(title + ' ' + desc):
+            title_el = c.query_selector('span[aria-hidden="true"]') or c.query_selector('h3')
+            title = title_el.inner_text.strip() if title_el else ''
+            company_el = c.query_selector('.job-search-card__company-name')
+            company = company_el.inner_text.strip() if company_el else ''
+            loc_el = c.query_selector('.job-search-card__location')
+            loc = loc_el.inner_text.strip() if loc_el else ''
+            desc_el = c.query_selector('.job-search-card__description')
+            desc = desc_el.inner_text.strip() if desc_el else ''
+            if matches_keywords(title + ' ' + company + ' ' + desc):
                 results.append({'source':'LinkedIn','title':title,'company':company,'location':loc,'link':link,'description':desc[:2000]})
                 print(f'LinkedIn: Added job "{title}" by {company}')
             else:
@@ -212,8 +227,9 @@ def scrape_glassdoor(page, limit=None):
     page.wait_for_timeout(3000)
     check_captcha(page)
     # Scroll to load more jobs
-    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-    page.wait_for_timeout(2000)
+    for _ in range(3):
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(2000)
     cards = page.query_selector_all('a[href*="/job-listing/"]')
     print(f'Glassdoor: Found {len(cards)} job cards')
     seen = set()
@@ -259,8 +275,9 @@ def scrape_google_jobs(page, limit=None):
     page.wait_for_timeout(3000)
     check_captcha(page)
     # Scroll to load more jobs
-    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-    page.wait_for_timeout(2000)
+    for _ in range(3):
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(2000)
     # Google Jobs specific: jobs are in the pane
     jobs = page.query_selector_all('.gws-plugins-horizon-jobs__job') or page.query_selector_all('[data-ved*="job"]')
     print(f'Google Jobs: Found {len(jobs)} job entries')
@@ -287,6 +304,100 @@ def scrape_google_jobs(page, limit=None):
             print('google jobs item error', e)
             continue
     print(f'Google Jobs: Total results: {len(results)}')
+    return results
+
+
+def scrape_monster(page, limit=None):
+    if limit is None:
+        limit = PLAY_CFG.get('max_jobs_per_source', 50)
+    results = []
+    q = '+'.join(KEYWORDS)
+    url = f'https://www.monster.com/jobs/search?q={q}&where=Canada'
+    print(f'Monster: Searching for "{q}" at {url}')
+    page.goto(url)
+    page.wait_for_timeout(3000)
+    check_captcha(page)
+    # Scroll to load more jobs
+    for _ in range(3):
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(2000)
+    cards = page.query_selector_all('.job-card')
+    print(f'Monster: Found {len(cards)} job cards')
+    seen = set()
+    for c in cards[:limit]:
+        try:
+            link_el = c.query_selector('a[href*="/job/"]')
+            if not link_el:
+                continue
+            href = link_el.get_attribute('href')
+            if not href or href in seen:
+                continue
+            seen.add(href)
+            link = 'https://www.monster.com' + href if href.startswith('/') else href
+            title_el = c.query_selector('h3')
+            title = title_el.inner_text.strip() if title_el else ''
+            company_el = c.query_selector('.job-card__company-name')
+            company = company_el.inner_text.strip() if company_el else ''
+            loc_el = c.query_selector('.job-card__location')
+            loc = loc_el.inner_text.strip() if loc_el else ''
+            desc_el = c.query_selector('.job-card__description')
+            desc = desc_el.inner_text.strip() if desc_el else ''
+            if matches_keywords(title + ' ' + company + ' ' + desc):
+                results.append({'source':'Monster','title':title,'company':company,'location':loc,'link':link,'description':desc[:2000]})
+                print(f'Monster: Added job "{title}" by {company}')
+            else:
+                print(f'Monster: Skipped job "{title}" - no keyword match')
+        except Exception as e:
+            print('monster item error', e)
+            continue
+    print(f'Monster: Total results: {len(results)}')
+    return results
+
+
+def scrape_ziprecruiter(page, limit=None):
+    if limit is None:
+        limit = PLAY_CFG.get('max_jobs_per_source', 50)
+    results = []
+    q = '+'.join(KEYWORDS)
+    url = f'https://www.ziprecruiter.com/candidate/search?search={q}&location=Canada'
+    print(f'ZipRecruiter: Searching for "{q}" at {url}')
+    page.goto(url)
+    page.wait_for_timeout(3000)
+    check_captcha(page)
+    # Scroll to load more jobs
+    for _ in range(3):
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(2000)
+    cards = page.query_selector_all('.job_result')
+    print(f'ZipRecruiter: Found {len(cards)} job cards')
+    seen = set()
+    for c in cards[:limit]:
+        try:
+            link_el = c.query_selector('a[href*="/job/"]')
+            if not link_el:
+                continue
+            href = link_el.get_attribute('href')
+            if not href or href in seen:
+                continue
+            seen.add(href)
+            link = 'https://www.ziprecruiter.com' + href if href.startswith('/') else href
+            title_el = c.query_selector('h2')
+            title = title_el.inner_text.strip() if title_el else ''
+            company_el = c.query_selector('.company_name')
+            company = company_el.inner_text.strip() if company_el else ''
+            loc_el = c.query_selector('.location')
+            loc = loc_el.inner_text.strip() if loc_el else ''
+            desc_el = c.query_selector('.job_snippet')
+            desc = desc_el.inner_text.strip() if desc_el else ''
+            if matches_keywords(title + ' ' + company + ' ' + desc):
+                results.append({'source':'ZipRecruiter','title':title,'company':company,'location':loc,'link':link,'description':desc[:2000]})
+                print(f'ZipRecruiter: Added job "{title}" by {company}')
+            else:
+                print(f'ZipRecruiter: Skipped job "{title}" - no keyword match')
+        except Exception as e:
+            print('ziprecruiter item error', e)
+            continue
+    print(f'ZipRecruiter: Total results: {len(results)}')
     return results
 
 
@@ -346,72 +457,100 @@ def main():
         all_results = []
         # run each source in its own browser instance (allows proxy rotation per-run)
         def run_jobbank():
-            browser = launch_browser(p)
+            context = launch_browser(p)
             try:
-                page = browser.new_page()
+                page = context.new_page()
                 page.set_default_navigation_timeout(60000)
                 page.set_default_timeout(60000)
                 res = scrape_jobbank(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
                 return res
             finally:
                 try:
-                    browser.close()
+                    context.close()
                 except Exception:
                     pass
 
         def run_indeed():
-            browser = launch_browser(p)
+            context = launch_browser(p)
             try:
-                page = browser.new_page()
+                page = context.new_page()
                 page.set_default_navigation_timeout(60000)
                 page.set_default_timeout(60000)
                 res = scrape_indeed(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
                 return res
             finally:
                 try:
-                    browser.close()
+                    context.close()
                 except Exception:
                     pass
 
         def run_linkedin():
-            browser = launch_browser(p)
+            context = launch_browser(p)
             try:
-                page = browser.new_page()
+                page = context.new_page()
                 page.set_default_navigation_timeout(60000)
                 page.set_default_timeout(60000)
                 res = scrape_linkedin(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
                 return res
             finally:
                 try:
-                    browser.close()
+                    context.close()
                 except Exception:
                     pass
 
         def run_glassdoor():
-            browser = launch_browser(p)
+            context = launch_browser(p)
             try:
-                page = browser.new_page()
+                page = context.new_page()
                 page.set_default_navigation_timeout(60000)
                 page.set_default_timeout(60000)
                 res = scrape_glassdoor(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
                 return res
             finally:
                 try:
-                    browser.close()
+                    context.close()
                 except Exception:
                     pass
 
         def run_google_jobs():
-            browser = launch_browser(p)
+            context = launch_browser(p)
             try:
-                page = browser.new_page()
+                page = context.new_page()
                 page.set_default_navigation_timeout(60000)
                 page.set_default_timeout(60000)
                 res = scrape_google_jobs(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
                 return res
             finally:
                 try:
-                    browser.close()
+                    context.close()
+                except Exception:
+                    pass
+
+        def run_monster():
+            context = launch_browser(p)
+            try:
+                page = context.new_page()
+                page.set_default_navigation_timeout(60000)
+                page.set_default_timeout(60000)
+                res = scrape_monster(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
+                return res
+            finally:
+                try:
+                    context.close()
+                except Exception:
+                    pass
+
+        def run_ziprecruiter():
+            context = launch_browser(p)
+            try:
+                page = context.new_page()
+                page.set_default_navigation_timeout(60000)
+                page.set_default_timeout(60000)
+                res = scrape_ziprecruiter(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
+                return res
+            finally:
+                try:
+                    context.close()
                 except Exception:
                     pass
 
@@ -445,20 +584,32 @@ def main():
         except Exception as e:
             print('google_jobs scrape failed after retries', e)
 
+        try:
+            if SOURCES.get('monster', False):
+                all_results.extend(run_with_retries(run_monster, attempts=PLAY_CFG.get('retries', 2), backoff=3) or [])
+        except Exception as e:
+            print('monster scrape failed after retries', e)
+
+        try:
+            if SOURCES.get('ziprecruiter', False):
+                all_results.extend(run_with_retries(run_ziprecruiter, attempts=PLAY_CFG.get('retries', 2), backoff=3) or [])
+        except Exception as e:
+            print('ziprecruiter scrape failed after retries', e)
+
         # company ATS
         if SOURCES.get('company_ats', True):
             for c in cfg.get('target_companies', []):
                 def make_company_run(company, url):
                     def _run():
-                        browser = launch_browser(p)
+                        context = launch_browser(p)
                         try:
-                            page = browser.new_page()
+                            page = context.new_page()
                             page.set_default_navigation_timeout(60000)
                             page.set_default_timeout(60000)
                             return scrape_company_ats(page, company, url)
                         finally:
                             try:
-                                browser.close()
+                                context.close()
                             except Exception:
                                 pass
                     return _run
