@@ -87,10 +87,12 @@ def setup_user_preferences():
     # Output settings
     print("\n--- Output Settings ---")
     csv_file = get_user_input("Output CSV filename", f"jobs_results_{user_name}.csv")
+    if not csv_file.endswith('.csv'):
+        csv_file += '.csv'
     include_logs = get_user_input("Include detailed logs? y/n", "y").lower().startswith('y')
 
     # Proxy (optional)
-    proxy = get_user_input("Proxy (leave empty if none)", "")
+    proxy = get_user_input("Proxy URL (e.g., http://user:pass@host:port) or leave empty", "")
 
     # Generate config
     config = {

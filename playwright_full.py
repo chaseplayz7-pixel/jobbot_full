@@ -54,6 +54,9 @@ def scrape_jobbank(page, limit=None):
     print(f'JobBank: Searching for "{q}" at {url}')
     page.goto(url)
     page.wait_for_timeout(2000)
+    # Scroll to load more jobs
+    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    page.wait_for_timeout(2000)
     anchors = page.query_selector_all('a[href*="/jobsearch/jobposting/"]')
     print(f'JobBank: Found {len(anchors)} job links')
     seen = set()
@@ -68,6 +71,7 @@ def scrape_jobbank(page, limit=None):
             seen.add(link)
             print(f'JobBank: Visiting {link}')
             page.goto(link)
+            page.wait_for_load_state('domcontentloaded')
             page.wait_for_timeout(1000)
             title = page.query_selector('h1')
             title_t = title.inner_text().strip() if title else ''
@@ -98,6 +102,10 @@ def scrape_indeed(page, limit=None):
     print(f'Indeed: Searching for "{q}" at {url}')
     page.goto(url)
     page.wait_for_timeout(3000)
+    check_captcha(page)
+    # Scroll to load more jobs
+    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    page.wait_for_timeout(2000)
     cards = page.query_selector_all('a.tapItem')
     if not cards:
         cards = page.query_selector_all('a[href*="/rc/clk"]')
@@ -114,7 +122,9 @@ def scrape_indeed(page, limit=None):
             seen.add(link)
             print(f'Indeed: Visiting {link}')
             page.goto(link)
+            page.wait_for_load_state('domcontentloaded')
             page.wait_for_timeout(1200)
+            check_captcha(page)
             title = page.title()
             company_el = page.query_selector('div.jobsearch-InlineCompanyRating div') or page.query_selector('.icl-u-lg-mr--sm')
             company = company_el.inner_text().strip() if company_el else ''
@@ -136,9 +146,9 @@ def scrape_indeed(page, limit=None):
 
 def check_captcha(page):
     # Check for common CAPTCHA indicators
-    if page.query_selector('iframe[src*="recaptcha"]') or 'captcha' in page.url.lower() or page.query_selector('[class*="captcha"]'):
-        print("CAPTCHA detected! Please solve it manually in the browser window.")
-        input("Press Enter after solving CAPTCHA to continue...")
+    if page.query_selector('iframe[src*="recaptcha"]') or 'captcha' in page.url.lower() or page.query_selector('[class*="captcha"]') or page.query_selector('.captcha'):
+        print("CAPTCHA detected! The browser window is open. Please solve the CAPTCHA manually, then press Enter here to continue scraping.")
+        input("Press Enter after solving CAPTCHA...")
         return True
     return False
 
@@ -148,11 +158,14 @@ def scrape_linkedin(page, limit=None):
         limit = PLAY_CFG.get('max_jobs_per_source', 50)
     results = []
     q = '%20'.join(KEYWORDS)
-    url = f'https://www.linkedin.com/jobs/search/?keywords={q}'
+    url = f'https://www.linkedin.com/jobs/search/?keywords={q}&location=Canada'
     print(f'LinkedIn: Searching for "{q}" at {url}')
     page.goto(url)
     page.wait_for_timeout(3000)
     check_captcha(page)
+    # Scroll to load more jobs
+    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    page.wait_for_timeout(2000)
     cards = page.query_selector_all('a[href*="/jobs/view/"]')
     print(f'LinkedIn: Found {len(cards)} job links')
     seen = set()
@@ -165,6 +178,7 @@ def scrape_linkedin(page, limit=None):
             link = href if href.startswith('http') else 'https://www.linkedin.com' + href
             print(f'LinkedIn: Visiting {link}')
             page.goto(link)
+            page.wait_for_load_state('domcontentloaded')
             page.wait_for_timeout(1200)
             check_captcha(page)
             title_el = page.query_selector('h1')
@@ -197,31 +211,31 @@ def scrape_glassdoor(page, limit=None):
     page.goto(url)
     page.wait_for_timeout(3000)
     check_captcha(page)
-    cards = page.query_selector_all('.react-job-listing')
+    # Scroll to load more jobs
+    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    page.wait_for_timeout(2000)
+    cards = page.query_selector_all('a[href*="/job-listing/"]')
     print(f'Glassdoor: Found {len(cards)} job cards')
     seen = set()
     for c in cards[:limit]:
         try:
             link_el = c.query_selector('a')
-            href = link_el.get_attribute('href') if link_el else None
+            if not link_el:
+                continue
+            href = link_el.get_attribute('href')
             if not href:
                 continue
             link = 'https://www.glassdoor.com' + href if href.startswith('/') else href
             if link in seen:
                 continue
             seen.add(link)
-            print(f'Glassdoor: Visiting {link}')
-            page.goto(link)
-            page.wait_for_timeout(1200)
-            check_captcha(page)
-            title_el = page.query_selector('h1')
-            title = title_el.inner_text().strip() if title_el else ''
-            company_el = page.query_selector('.employer-name')
-            company = company_el.inner_text().strip() if company_el else ''
-            loc_el = page.query_selector('.location')
-            loc = loc_el.inner_text().strip() if loc_el else ''
-            desc_el = page.query_selector('.jobDescriptionContent')
-            desc = desc_el.inner_text().strip() if desc_el else ''
+            title = link_el.inner_text.strip()
+            company_el = c.query_selector('span.css-1qg0z0e') or c.query_selector('.job-search-1oeuq0e')
+            company = company_el.inner_text.strip() if company_el else ''
+            loc_el = c.query_selector('span.css-1ik5rs0')
+            loc = loc_el.inner_text.strip() if loc_el else ''
+            desc_el = c.query_selector('.jobDescriptionContent')
+            desc = desc_el.inner_text.strip() if desc_el else ''
             if matches_keywords(title + ' ' + desc):
                 results.append({'source':'Glassdoor','title':title,'company':company,'location':loc,'link':link,'description':desc[:2000]})
                 print(f'Glassdoor: Added job "{title}" by {company}')
@@ -244,8 +258,11 @@ def scrape_google_jobs(page, limit=None):
     page.goto(url)
     page.wait_for_timeout(3000)
     check_captcha(page)
-    # Google Jobs has a specific pane
-    jobs = page.query_selector_all('[data-ved*="job"]')
+    # Scroll to load more jobs
+    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    page.wait_for_timeout(2000)
+    # Google Jobs specific: jobs are in the pane
+    jobs = page.query_selector_all('.gws-plugins-horizon-jobs__job') or page.query_selector_all('[data-ved*="job"]')
     print(f'Google Jobs: Found {len(jobs)} job entries')
     seen = set()
     for j in jobs[:limit]:
