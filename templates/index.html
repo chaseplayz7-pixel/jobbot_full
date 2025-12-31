@@ -1,21 +1,18 @@
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Review Queue</title></head>
+<head><meta charset="utf-8"><title>Job Results</title></head>
 <body>
-  <h1>Review Queue</h1>
+  <h1>Job Results</h1>
   <table border="1" cellpadding="6">
-    <tr><th>ID</th><th>Source</th><th>Title</th><th>Company</th><th>Scraped At</th><th>Actions</th></tr>
+    <tr><th>Source</th><th>Title</th><th>Company</th><th>Location</th><th>Link</th><th>Description</th></tr>
     {% for j in jobs %}
     <tr>
-      <td>{{j.id}}</td>
       <td>{{j.source}}</td>
-      <td><a href="/job/{{j.id}}">{{j.title}}</a></td>
+      <td>{{j.title}}</td>
       <td>{{j.company}}</td>
-      <td>{{j.scraped_at}}</td>
-      <td>
-        <form action="/job/{{j.id}}/mark" method="post" style="display:inline"><button type="submit">Mark Reviewed</button></form>
-        <a href="/job/{{j.id}}/generate">Generate Resume PDF</a>
-      </td>
+      <td>{{j.location}}</td>
+      <td><a href="{{j.link}}" target="_blank">Apply</a></td>
+      <td>{{j.description[:200]}}...</td>
     </tr>
     {% endfor %}
   </table>
