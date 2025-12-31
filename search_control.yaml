@@ -12,6 +12,9 @@ sources:
   jobbank: true
   indeed: true
   company_ats: true
+  linkedin: true
+  glassdoor: true
+  google_jobs: true
 target_companies:
 - name: google
   careers: https://careers.google.com

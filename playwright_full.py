@@ -134,6 +134,145 @@ def scrape_indeed(page, limit=None):
     return results
 
 
+def check_captcha(page):
+    # Check for common CAPTCHA indicators
+    if page.query_selector('iframe[src*="recaptcha"]') or 'captcha' in page.url.lower() or page.query_selector('[class*="captcha"]'):
+        print("CAPTCHA detected! Please solve it manually in the browser window.")
+        input("Press Enter after solving CAPTCHA to continue...")
+        return True
+    return False
+
+
+def scrape_linkedin(page, limit=None):
+    if limit is None:
+        limit = PLAY_CFG.get('max_jobs_per_source', 50)
+    results = []
+    q = '%20'.join(KEYWORDS)
+    url = f'https://www.linkedin.com/jobs/search/?keywords={q}'
+    print(f'LinkedIn: Searching for "{q}" at {url}')
+    page.goto(url)
+    page.wait_for_timeout(3000)
+    check_captcha(page)
+    cards = page.query_selector_all('a[href*="/jobs/view/"]')
+    print(f'LinkedIn: Found {len(cards)} job links')
+    seen = set()
+    for c in cards[:limit]:
+        try:
+            href = c.get_attribute('href')
+            if not href or href in seen:
+                continue
+            seen.add(href)
+            link = href if href.startswith('http') else 'https://www.linkedin.com' + href
+            print(f'LinkedIn: Visiting {link}')
+            page.goto(link)
+            page.wait_for_timeout(1200)
+            check_captcha(page)
+            title_el = page.query_selector('h1')
+            title = title_el.inner_text().strip() if title_el else ''
+            company_el = page.query_selector('.job-details-jobs-unified-top-card__company-name a')
+            company = company_el.inner_text().strip() if company_el else ''
+            loc_el = page.query_selector('.job-details-jobs-unified-top-card__bullet')
+            loc = loc_el.inner_text().strip() if loc_el else ''
+            desc_el = page.query_selector('.job-details-jobs-unified-top-card__description')
+            desc = desc_el.inner_text().strip() if desc_el else ''
+            if matches_keywords(title + ' ' + desc):
+                results.append({'source':'LinkedIn','title':title,'company':company,'location':loc,'link':link,'description':desc[:2000]})
+                print(f'LinkedIn: Added job "{title}" by {company}')
+            else:
+                print(f'LinkedIn: Skipped job "{title}" - no keyword match')
+        except Exception as e:
+            print('linkedin item error', e)
+            continue
+    print(f'LinkedIn: Total results: {len(results)}')
+    return results
+
+
+def scrape_glassdoor(page, limit=None):
+    if limit is None:
+        limit = PLAY_CFG.get('max_jobs_per_source', 50)
+    results = []
+    q = ' '.join(KEYWORDS)
+    url = f'https://www.glassdoor.com/Job/jobs.htm?sc.keyword={q}'
+    print(f'Glassdoor: Searching for "{q}" at {url}')
+    page.goto(url)
+    page.wait_for_timeout(3000)
+    check_captcha(page)
+    cards = page.query_selector_all('.react-job-listing')
+    print(f'Glassdoor: Found {len(cards)} job cards')
+    seen = set()
+    for c in cards[:limit]:
+        try:
+            link_el = c.query_selector('a')
+            href = link_el.get_attribute('href') if link_el else None
+            if not href:
+                continue
+            link = 'https://www.glassdoor.com' + href if href.startswith('/') else href
+            if link in seen:
+                continue
+            seen.add(link)
+            print(f'Glassdoor: Visiting {link}')
+            page.goto(link)
+            page.wait_for_timeout(1200)
+            check_captcha(page)
+            title_el = page.query_selector('h1')
+            title = title_el.inner_text().strip() if title_el else ''
+            company_el = page.query_selector('.employer-name')
+            company = company_el.inner_text().strip() if company_el else ''
+            loc_el = page.query_selector('.location')
+            loc = loc_el.inner_text().strip() if loc_el else ''
+            desc_el = page.query_selector('.jobDescriptionContent')
+            desc = desc_el.inner_text().strip() if desc_el else ''
+            if matches_keywords(title + ' ' + desc):
+                results.append({'source':'Glassdoor','title':title,'company':company,'location':loc,'link':link,'description':desc[:2000]})
+                print(f'Glassdoor: Added job "{title}" by {company}')
+            else:
+                print(f'Glassdoor: Skipped job "{title}" - no keyword match')
+        except Exception as e:
+            print('glassdoor item error', e)
+            continue
+    print(f'Glassdoor: Total results: {len(results)}')
+    return results
+
+
+def scrape_google_jobs(page, limit=None):
+    if limit is None:
+        limit = PLAY_CFG.get('max_jobs_per_source', 50)
+    results = []
+    q = '+'.join(KEYWORDS)
+    url = f'https://www.google.com/search?ibp=htl;jobs&q={q}'
+    print(f'Google Jobs: Searching for "{q}" at {url}')
+    page.goto(url)
+    page.wait_for_timeout(3000)
+    check_captcha(page)
+    # Google Jobs has a specific pane
+    jobs = page.query_selector_all('[data-ved*="job"]')
+    print(f'Google Jobs: Found {len(jobs)} job entries')
+    seen = set()
+    for j in jobs[:limit]:
+        try:
+            title_el = j.query_selector('h3')
+            title = title_el.inner_text().strip() if title_el else ''
+            company_el = j.query_selector('.vNEEBe')
+            company = company_el.inner_text().strip() if company_el else ''
+            loc_el = j.query_selector('.Qk80Jf')
+            loc = loc_el.inner_text().strip() if loc_el else ''
+            link_el = j.query_selector('a')
+            link = link_el.get_attribute('href') if link_el else ''
+            desc_el = j.query_selector('.HBvzbc')
+            desc = desc_el.inner_text().strip() if desc_el else ''
+            if link and link not in seen and matches_keywords(title + ' ' + desc):
+                seen.add(link)
+                results.append({'source':'Google Jobs','title':title,'company':company,'location':loc,'link':link,'description':desc[:2000]})
+                print(f'Google Jobs: Added job "{title}" by {company}')
+            else:
+                print(f'Google Jobs: Skipped job "{title}" - no keyword match or duplicate')
+        except Exception as e:
+            print('google jobs item error', e)
+            continue
+    print(f'Google Jobs: Total results: {len(results)}')
+    return results
+
+
 def scrape_company_ats(page, company, url):
     results = []
     try:
@@ -217,6 +356,48 @@ def main():
                 except Exception:
                     pass
 
+        def run_linkedin():
+            browser = launch_browser(p)
+            try:
+                page = browser.new_page()
+                page.set_default_navigation_timeout(60000)
+                page.set_default_timeout(60000)
+                res = scrape_linkedin(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
+                return res
+            finally:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+
+        def run_glassdoor():
+            browser = launch_browser(p)
+            try:
+                page = browser.new_page()
+                page.set_default_navigation_timeout(60000)
+                page.set_default_timeout(60000)
+                res = scrape_glassdoor(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
+                return res
+            finally:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+
+        def run_google_jobs():
+            browser = launch_browser(p)
+            try:
+                page = browser.new_page()
+                page.set_default_navigation_timeout(60000)
+                page.set_default_timeout(60000)
+                res = scrape_google_jobs(page, limit=PLAY_CFG.get('max_jobs_per_source', 50))
+                return res
+            finally:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+
         try:
             if SOURCES.get('jobbank', True):
                 all_results.extend(run_with_retries(run_jobbank, attempts=PLAY_CFG.get('retries', 2), backoff=3) or [])
@@ -228,6 +409,24 @@ def main():
                 all_results.extend(run_with_retries(run_indeed, attempts=PLAY_CFG.get('retries', 2), backoff=3) or [])
         except Exception as e:
             print('indeed scrape failed after retries', e)
+
+        try:
+            if SOURCES.get('linkedin', False):
+                all_results.extend(run_with_retries(run_linkedin, attempts=PLAY_CFG.get('retries', 2), backoff=3) or [])
+        except Exception as e:
+            print('linkedin scrape failed after retries', e)
+
+        try:
+            if SOURCES.get('glassdoor', False):
+                all_results.extend(run_with_retries(run_glassdoor, attempts=PLAY_CFG.get('retries', 2), backoff=3) or [])
+        except Exception as e:
+            print('glassdoor scrape failed after retries', e)
+
+        try:
+            if SOURCES.get('google_jobs', False):
+                all_results.extend(run_with_retries(run_google_jobs, attempts=PLAY_CFG.get('retries', 2), backoff=3) or [])
+        except Exception as e:
+            print('google_jobs scrape failed after retries', e)
 
         # company ATS
         if SOURCES.get('company_ats', True):
